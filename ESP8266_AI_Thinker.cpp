@@ -12,18 +12,22 @@
 
   Written by Limor Fried and Phil Burgess for Adafruit Industries.
   MIT license, all text above must be included in any redistribution.
+
+  Changed to work with AI Thinker
   ------------------------------------------------------------------------*/
 
-#include "Adafruit_ESP8266.h"
+#include "ESP8266_AI_Thinker.h"
 
 // Constructor
-Adafruit_ESP8266::Adafruit_ESP8266(Stream *s, Stream *d, int8_t r) :
+ESP8266_AI_Thinker::ESP8266_AI_Thinker(Stream *s, Stream *d, int8_t r) :
  stream(s), debug(d), reset_pin(r), host(NULL), writing(false) {
   setTimeouts();
 };
 
+const char* charHost;
+
 // Override various timings.  Passing 0 for an item keeps current setting.
-void Adafruit_ESP8266::setTimeouts(
+void ESP8266_AI_Thinker::setTimeouts(
  uint32_t rcv, uint32_t rst, uint32_t con, uint32_t ipd) {
   if(rcv) {
     stream->setTimeout(rcv);
@@ -35,13 +39,13 @@ void Adafruit_ESP8266::setTimeouts(
 }
 
 // Override boot marker string, or pass NULL to restore default.
-void Adafruit_ESP8266::setBootMarker(Fstr *s) {
+void ESP8266_AI_Thinker::setBootMarker(Fstr *s) {
   bootMarker = s ? s : defaultBootMarker;
 }
 
 // Anything printed to the EPS8266 object will be split to both the WiFi
 // and debug streams.  Saves having to print everything twice in debug code.
-size_t Adafruit_ESP8266::write(uint8_t c) {
+size_t ESP8266_AI_Thinker::write(uint8_t c) {
   if(debug) {
     if(!writing) {
       debug->print(F("---> "));
@@ -60,7 +64,7 @@ size_t Adafruit_ESP8266::write(uint8_t c) {
 // a CIPSEND request and might be broken into multiple sections with +IPD
 // delimiters, which must be parsed and handled (as the search string may
 // cross these delimiters and/or contain \r or \n itself).
-boolean Adafruit_ESP8266::find(Fstr *str, boolean ipd) {
+boolean ESP8266_AI_Thinker::find(Fstr *str, boolean ipd) {
   uint8_t  stringLength, matchedLength = 0;
   int      c;
   boolean  found = false;
@@ -122,7 +126,7 @@ boolean Adafruit_ESP8266::find(Fstr *str, boolean ipd) {
 
 // Read from ESP8266 stream into RAM, up to a given size.  Max number of
 // chars read is 1 less than this, so NUL can be appended on string.
-int Adafruit_ESP8266::readLine(char *buf, int bufSiz) {
+int ESP8266_AI_Thinker::readLine(char *buf, int bufSiz) {
   if(debug && writing) {
     debug->print(F("<--- '"));
     writing = false;
@@ -143,7 +147,7 @@ int Adafruit_ESP8266::readLine(char *buf, int bufSiz) {
 // pullup) -- setting to LOW provides an open-drain for reset.
 // Returns true if expected boot message is received (or if RST is unused),
 // false otherwise.
-boolean Adafruit_ESP8266::hardReset(void) {
+boolean ESP8266_AI_Thinker::hardReset(void) {
   if(reset_pin < 0) return true;
   digitalWrite(reset_pin, LOW);
   pinMode(reset_pin, OUTPUT); // Open drain; reset -> GND
@@ -153,7 +157,7 @@ boolean Adafruit_ESP8266::hardReset(void) {
 }
 
 // Soft reset.  Returns true if expected boot message received, else false.
-boolean Adafruit_ESP8266::softReset(void) {
+boolean ESP8266_AI_Thinker::softReset(void) {
   boolean  found = false;
   uint32_t save  = receiveTimeout; // Temporarily override recveive timeout,
   receiveTimeout = resetTimeout;   // reset time is longer than normal I/O.
@@ -167,7 +171,7 @@ boolean Adafruit_ESP8266::softReset(void) {
 }
 
 // For interactive debugging...shuttle data between Serial Console <-> WiFi
-void Adafruit_ESP8266::debugLoop(void) {
+void ESP8266_AI_Thinker::debugLoop(void) {
   if(!debug) for(;;); // If no debug connection, nothing to do.
 
   debug->println(F("\n========================"));
@@ -180,13 +184,12 @@ void Adafruit_ESP8266::debugLoop(void) {
 // Connect to WiFi access point.  SSID and password are flash-resident
 // strings.  May take several seconds to execute, this is normal.
 // Returns true on successful connection, false otherwise.
-boolean Adafruit_ESP8266::connectToAP(Fstr *ssid, Fstr *pass) {
+boolean ESP8266_AI_Thinker::connectToAP(Fstr *ssid, Fstr *pass) {
   char buf[256];
 
   println(F("AT+CWMODE=1")); // WiFi mode = Sta
   readLine(buf, sizeof(buf));
-  if(!(strstr_P(buf, (Pchr *)F("OK")) ||
-       strstr_P(buf, (Pchr *)F("no change")))) return false;
+  if(!find()) return false;
 
   print(F("AT+CWJAP=\"")); // Join access point
   print(ssid);
@@ -205,30 +208,58 @@ boolean Adafruit_ESP8266::connectToAP(Fstr *ssid, Fstr *pass) {
   return found;
 }
 
-void Adafruit_ESP8266::closeAP(void) {
+void ESP8266_AI_Thinker::closeAP(void) {
   println(F("AT+CWQAP")); // Quit access point
   find(); // Purge 'OK'
 }
 
 // Open TCP connection.  Hostname is flash-resident string.
 // Returns true on successful connection, else false.
-boolean Adafruit_ESP8266::connectTCP(Fstr *h, int port) {
+boolean ESP8266_AI_Thinker::connectTCP(Fstr *h, int port) {
 
   print(F("AT+CIPSTART=\"TCP\",\""));
   print(h);
   print(F("\","));
   println(port);
 
-  if(find(F("Linked"))) {
+  if(find()) {
     host = h;
     return true;
   }
   return false;
 }
 
-void Adafruit_ESP8266::closeTCP(void) {
+// Open TCP connection. 
+// Returns true on successful connection, else false.
+boolean ESP8266_AI_Thinker::connectTCP(const char *h, int port) {
+
+  print(F("AT+CIPSTART=\"TCP\",\""));
+  print(h);
+  print(F("\","));
+  println(port);
+
+  if(find()) {
+    charHost = h;
+    return true;
+  }
+  return false;
+}
+
+void ESP8266_AI_Thinker::closeTCP(void) {
   println(F("AT+CIPCLOSE"));
-  find(F("Unlink\r\n"));
+  find();
+}
+
+// Test TCP connection. 
+// Returns true if connected
+boolean ESP8266_AI_Thinker::isConnectedTCP() {
+
+  println(F("AT+CIPSTATUS"));
+
+  if(find(F("STATUS:3"))) {
+    return find();
+  }
+  return false;
 }
 
 // Requests page from currently-open TCP connection.  URL is
@@ -236,7 +267,7 @@ void Adafruit_ESP8266::closeTCP(void) {
 // else false.  Calling function should then handle data returned, may
 // need to parse IPD delimiters (see notes in find() function.
 // (Can call find(F("Unlink"), true) to dump to debug.)
-boolean Adafruit_ESP8266::requestURL(Fstr *url) {
+boolean ESP8266_AI_Thinker::requestURL(Fstr *url) {
   print(F("AT+CIPSEND="));
   println(25 + strlen_P((Pchr *)url) + strlen_P((Pchr *)host));
   if(find(F("> "))) { // Wait for prompt
@@ -255,7 +286,7 @@ boolean Adafruit_ESP8266::requestURL(Fstr *url) {
 // else false.  Calling function should then handle data returned, may
 // need to parse IPD delimiters (see notes in find() function.
 // (Can call find(F("Unlink"), true) to dump to debug.)
-boolean Adafruit_ESP8266::requestURL(char* url) {
+boolean ESP8266_AI_Thinker::requestURL(char* url) {
     print(F("AT+CIPSEND="));
     println(25 + strlen(url) + strlen_P((Pchr *)host));
     if(find(F("> "))) { // Wait for prompt
@@ -267,4 +298,76 @@ boolean Adafruit_ESP8266::requestURL(char* url) {
         return(find()); // Gets 'SEND OK' line
     }
     return false;
+}
+
+
+/**
+ * @details Sends data via CIPSEND. Checks expected response 
+ *          from server was received.
+ * 
+ * @param data The data to send via CIPSEND
+ * @param ack The string to check for in the server response
+ * 
+ * @return boolean True if ack or "SEND OK" was found in server
+ *         response, false otherwise.
+ */
+boolean ESP8266_AI_Thinker::cipSend(const char* data, Fstr *ack){
+    print(F("AT+CIPSEND="));
+    println(2 + strlen(data)); // data length + <CR><LF>
+    if(find(F("> "))) { // Wait for prompt
+        print(data);
+        print(F("\r\n"));
+        if(ack!=NULL){
+            return(find(ack));
+        }else{
+            return(find()); // Gets 'SEND OK' line
+        }
+    }
+    return false; // No prompt from ESP, the CIPSEND command was not received by the ESP module
+}
+
+
+/**
+ * Function used to send HTTP POST requests with json
+ * @param host HTTP host
+ * @param uri host uri
+ * @param data json string
+ * 
+ * @return boolean true if "SEND OK"
+ */
+boolean ESP8266_AI_Thinker::httpPostJson(const char *host, const char* uri, const char* data)
+{
+    /*
+    *  POST uri HTTP/1.1\r\n
+    *  Host: host\r\n
+    *  Connection: close\r\n
+    *  Content-Type: application/json\r\n
+    *  Content-Length: dataLength\r\n
+    *  \r\n
+    *  data
+    */
+	
+	int dataLength = strlen(data);
+	char strDataLength[6]; // can send 0-999 bytes of data
+	sprintf(strDataLength,"%d\r\n",dataLength);
+	char content_length_buffer[25] = "Content-Length: ";
+	strcat(content_length_buffer,strDataLength);
+	
+	char buffer[350] = "POST "; // if your post request is longer than 199 bytes/characters then increase this value
+	strcat(buffer,uri);
+	strcat(buffer," HTTP/1.1\r\n");
+	strcat(buffer,"Host: ");
+	strcat(buffer,host);
+	strcat(buffer,"\r\n");
+	strcat(buffer,"Connection: close\r\n");
+	strcat(buffer,"Content-Type: application/json\r\n");
+	strcat(buffer,content_length_buffer);
+	strcat(buffer,"\r\n");
+	strcat(buffer,data);
+
+    return cipSend(buffer, NULL); //F("CLOSED")
+}
+
+void ESP8266_AI_Thinker::setDebug(Stream *d){
+  debug = d;
 }

@@ -14,8 +14,8 @@
   MIT license, all text above must be included in any redistribution.
   ------------------------------------------------------------------------*/
 
-#ifndef _ADAFRUIT_ESP8266_H_
-#define _ADAFRUIT_ESP8266_H_
+#ifndef _ESP8266_AI_Thinker_H_
+#define _ESP8266_AI_Thinker_H_
 
 #include <Arduino.h>
 
@@ -31,16 +31,20 @@ typedef const PROGMEM char        Pchr; // Ditto, kindasorta
 
 // Subclassing Print makes debugging easier -- output en route to
 // WiFi module can be duplicated on a second stream (e.g. Serial).
-class Adafruit_ESP8266 : public Print {
+class ESP8266_AI_Thinker : public Print {
  public:
-  Adafruit_ESP8266(Stream *s = &Serial, Stream *d = NULL, int8_t r = -1);
+  ESP8266_AI_Thinker(Stream *s = &Serial, Stream *d = NULL, int8_t r = -1);
   boolean   hardReset(void),
             softReset(void),
             find(Fstr *str = NULL, boolean ipd = false),
             connectToAP(Fstr *ssid, Fstr *pass),
             connectTCP(Fstr *host, int port),
+            connectTCP(const char *host, int port),
+            isConnectedTCP(),
             requestURL(Fstr *url),
-            requestURL(char* url);
+            requestURL(char* url),
+            cipSend(const char* data,Fstr *ack),
+            httpPostJson(const char *host, const char* uri, const char* data);
   int       readLine(char *buf, int bufSiz);
   void      closeAP(void),
             closeTCP(void),
@@ -62,4 +66,4 @@ class Adafruit_ESP8266 : public Print {
   virtual size_t write(uint8_t); // Because Print subclass
 };
 
-#endif // _ADAFRUIT_ESP8266_H_
+#endif // _ESP8266_AI_Thinker_H_
